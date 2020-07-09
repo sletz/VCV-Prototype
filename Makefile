@@ -4,8 +4,7 @@ FLAGS += -Idep/include
 CFLAGS +=
 CXXFLAGS +=
 
-LDFLAGS +=
-
+LDFLAGS += 
 SOURCES += src/Prototype.cpp
 
 DISTRIBUTABLES += res examples
@@ -14,11 +13,12 @@ DISTRIBUTABLES += $(wildcard LICENSE*)
 include $(RACK_DIR)/arch.mk
 
 DUKTAPE ?= 0
-QUICKJS ?= 1
-LUAJIT ?= 1
+QUICKJS ?= 0
+LUAJIT ?= 0
 PYTHON ?= 0
 SUPERCOLLIDER ?= 0
-VULT ?= 1
+VULT ?= 0
+FAUST ?= 1
 
 # Vult depends on both LuaJIT and QuickJS
 ifeq ($(VULT), 1)
@@ -203,6 +203,16 @@ $(vult):
 	$(SHA256) $(vult) 91f575afd2913d0879df90ee666021065ad726372f0bd306198024dc771cce55
 FLAGS += -Idep/vult
 DEPS += $(vult)
+endif
+
+# Faust
+ifeq ($(FAUST), 1)
+SOURCES += src/FaustEngine.cpp
+FLAGS += -I/use/local/include
+LDFLAGS += -L/usr/local/lib -lfaust 
+DEPS += $(faust)
+OBJECTS += $(faust)
+FAUST_MAKE_FLAGS += prefix="$(DEP_PATH)"
 endif
 
 include $(RACK_DIR)/plugin.mk
