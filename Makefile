@@ -205,7 +205,7 @@ FLAGS += -Idep/vult
 DEPS += $(vult)
 endif
 
-# Faust
+# Faust: compile the libfaust dynamic library with 'make world && sudo make install'
 ifeq ($(FAUST), 1)
 SOURCES += src/FaustEngine.cpp
 FLAGS += -I/use/local/include
