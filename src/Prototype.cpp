@@ -7,6 +7,9 @@
 #include <mutex>
 #include "ScriptEngine.hpp"
 #include <efsw/efsw.h>
+#if defined ARCH_WIN
+	#include <windows.h>
+#endif
 
 
 using namespace rack;
@@ -28,14 +31,14 @@ ScriptEngine* createScriptEngine(std::string extension) {
 static std::string editorPath;
 
 
-json_t *settingsToJson() {
-	json_t *rootJ = json_object();
+json_t* settingsToJson() {
+	json_t* rootJ = json_object();
 	json_object_set_new(rootJ, "editorPath", json_string(editorPath.c_str()));
 	return rootJ;
 }
 
-void settingsFromJson(json_t *rootJ) {
-	json_t *editorPathJ = json_object_get(rootJ, "editorPath");
+void settingsFromJson(json_t* rootJ) {
+	json_t* editorPathJ = json_object_get(rootJ, "editorPath");
 	if (editorPathJ)
 		editorPath = json_string_value(editorPathJ);
 }
@@ -43,7 +46,7 @@ void settingsFromJson(json_t *rootJ) {
 void settingsLoad() {
 	// Load plugin settings
 	std::string filename = asset::user("VCV-Prototype.json");
-	FILE *file = std::fopen(filename.c_str(), "r");
+	FILE* file = std::fopen(filename.c_str(), "r");
 	if (!file) {
 		return;
 	}
@@ -52,7 +55,7 @@ void settingsLoad() {
 	});
 
 	json_error_t error;
-	json_t *rootJ = json_loadf(file, 0, &error);
+	json_t* rootJ = json_loadf(file, 0, &error);
 	if (rootJ) {
 		settingsFromJson(rootJ);
 		json_decref(rootJ);
@@ -60,10 +63,10 @@ void settingsLoad() {
 }
 
 void settingsSave() {
-	json_t *rootJ = settingsToJson();
+	json_t* rootJ = settingsToJson();
 
 	std::string filename = asset::user("VCV-Prototype.json");
-	FILE *file = std::fopen(filename.c_str(), "w");
+	FILE* file = std::fopen(filename.c_str(), "w");
 	if (file) {
 		json_dumpf(rootJ, file, JSON_INDENT(2) | JSON_REAL_PRECISION(9));
 		std::fclose(file);
@@ -88,7 +91,9 @@ void setEditorDialog() {
 	if (!editorPathC)
 		return;
 
-	editorPath = editorPathC;
+	editorPath = "\"";
+	editorPath += editorPathC;
+	editorPath += "\"";
 	settingsSave();
 	std::free(editorPathC);
 }
@@ -129,7 +134,7 @@ struct Prototype : Module {
 	efsw_watcher efsw = NULL;
 
 	/** Script that has not yet been approved to load */
-	std::string securityScript;
+	std::string unsecureScript;
 	bool securityRequested = false;
 	bool securityAccepted = false;
 
@@ -159,9 +164,9 @@ struct Prototype : Module {
 
 	void process(const ProcessArgs& args) override {
 		// Load security-sandboxed script if the security warning message is accepted.
-		if (securityScript != "" && securityAccepted) {
-			setScript(securityScript);
-			securityScript = "";
+		if (unsecureScript != "" && securityAccepted) {
+			setScript(unsecureScript);
+			unsecureScript = "";
 		}
 
 		// Frame divider for reducing sample rate
@@ -336,7 +341,7 @@ struct Prototype : Module {
 		std::string script = this->script;
 		// If we haven't accepted the security of this script, serialize the security-sandboxed script anyway.
 		if (script == "")
-			script = securityScript;
+			script = unsecureScript;
 		json_object_set_new(rootJ, "script", json_stringn(script.data(), script.size()));
 
 		return rootJ;
@@ -359,7 +364,7 @@ struct Prototype : Module {
 					// Request security warning message
 					securityAccepted = false;
 					securityRequested = true;
-					securityScript = script;
+					unsecureScript = script;
 				}
 			}
 		}
@@ -462,9 +467,23 @@ struct Prototype : Module {
 			return;
 		if (path.empty())
 			return;
-		// TODO Check on Mac/Windows
-		std::string command = "\"" + editorPath + "\" \"" + path + "\" &";
+		// Launch editor and detach
+#if defined ARCH_LIN
+		std::string command = editorPath + " \"" + path + "\" &";
 		std::system(command.c_str());
+#elif defined ARCH_MAC
+		std::string command = "open -a " + editorPath + " \"" + path + "\" &";
+		std::system(command.c_str());
+#elif defined ARCH_WIN
+		std::string command = editorPath + " \"" + path + "\"";
+		std::wstring commandW = string::toWstring(command);
+		STARTUPINFOW startupInfo;
+		std::memset(&startupInfo, 0, sizeof(startupInfo));
+		startupInfo.cb = sizeof(startupInfo);
+		PROCESS_INFORMATION processInfo;
+		// Use the non-const [] accessor for commandW. Since C++11, it is null-terminated.
+		CreateProcessW(NULL, &commandW[0], NULL, NULL, false, 0, NULL, NULL, &startupInfo, &processInfo);
+#endif
 	}
 
 	void setClipboardMessage() {
@@ -520,7 +539,7 @@ struct Prototype : Module {
 		};
 		EditScriptItem* editScriptItem = createMenuItem<EditScriptItem>("Edit script");
 		editScriptItem->module = this;
-		editScriptItem->disabled = !doesPathExist();
+		editScriptItem->disabled = !doesPathExist() || editorPath == "";
 		menu->addChild(editScriptItem);
 
 		struct SetEditorItem : MenuItem {

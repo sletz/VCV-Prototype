@@ -18,6 +18,7 @@ LUAJIT ?= 0
 PYTHON ?= 0
 SUPERCOLLIDER ?= 0
 VULT ?= 0
+LIBPD ?= 0
 FAUST ?= 1
 
 # Vult depends on both LuaJIT and QuickJS
@@ -25,6 +26,7 @@ ifeq ($(VULT), 1)
 QUICKJS := 1
 LUAJIT := 1
 endif
+
 
 # Entropia File System Watcher
 efsw := dep/lib/libefsw-static-release.a
@@ -36,6 +38,7 @@ $(efsw):
 	mkdir -p dep/lib dep/include
 	cd efsw && cp lib/libefsw-static-release.a $(DEP_PATH)/lib/
 	cd efsw && cp -R include/efsw $(DEP_PATH)/include/
+
 
 # Duktape
 ifeq ($(DUKTAPE), 1)
@@ -50,6 +53,7 @@ $(duktape):
 	cd dep && $(UNTAR) ../duktape-2.4.0.tar.xz
 endif
 
+
 # QuickJS
 ifeq ($(QUICKJS), 1)
 SOURCES += src/QuickJSEngine.cpp
@@ -63,9 +67,9 @@ endif
 $(quickjs):
 	cd dep && git clone "https://github.com/JerrySievert/QuickJS.git"
 	cd dep/QuickJS && git checkout 807adc8ca9010502853d471bd8331cdc1d376b94
-	cd dep/QuickJS && $(MAKE) $(QUICKJS_MAKE_FLAGS)
 	cd dep/QuickJS && $(MAKE) $(QUICKJS_MAKE_FLAGS) install
 endif
+
 
 # LuaJIT
 ifeq ($(LUAJIT), 1)
@@ -79,6 +83,7 @@ $(luajit):
 	cd dep && $(UNTAR) ../LuaJIT-2.0.5.tar.gz
 	cd dep/LuaJIT-2.0.5 && $(MAKE) BUILDMODE=static PREFIX="$(DEP_PATH)" install
 endif
+
 
 # SuperCollider
 ifeq ($(SUPERCOLLIDER), 1)
@@ -124,6 +129,7 @@ $(supercollider):
 	cd dep/supercollider/build && $(MAKE) generate_libsclang_link_line
 # 	cd dep/supercollider/build && $(MAKE) install
 endif
+
 
 # Python
 ifeq ($(PYTHON), 1)
@@ -193,6 +199,7 @@ endif
 # 	cd dep/llvm-8.0.1.src/build && $(MAKE)
 # 	cd dep/llvm-8.0.1.src/build && $(MAKE) install
 
+
 # Vult
 ifeq ($(VULT), 1)
 SOURCES += src/VultEngine.cpp
@@ -205,6 +212,27 @@ FLAGS += -Idep/vult
 DEPS += $(vult)
 endif
 
+# LibPD
+ifeq ($(LIBPD), 1)
+libpd := dep/lib/libpd.a
+SOURCES += src/LibPDEngine.cpp
+OBJECTS += $(libpd)
+DEPS += $(libpd)
+FLAGS += -Idep/include/libpd
+
+ifdef ARCH_WIN
+	FLAGS += -DPD_INTERNAL -D_WIN32
+	LDFLAGS += -shared -Wl,--export-all-symbols -lws2_32 -lkernel32 -static-libgcc
+endif
+
+$(libpd):
+	cd dep && git clone "https://github.com/chairaudio/libpd.git" --recursive
+	cd dep/libpd && git checkout fe1a0d08979efd5fc46590108845b235cb824634
+
+	cd dep/libpd && $(MAKE) MULTI=true BUILD_LIBPD_STATIC=true ADDITIONAL_CFLAGS='-DPD_LONGINTTYPE="long long"'
+	cd dep/libpd && $(MAKE) install prefix="$(DEP_PATH)"
+endif
+
 # Faust: compile the libfaust dynamic library with 'make world && sudo make install'
 ifeq ($(FAUST), 1)
 SOURCES += src/FaustEngine.cpp
@@ -214,5 +242,6 @@ DEPS += $(faust)
 OBJECTS += $(faust)
 FAUST_MAKE_FLAGS += prefix="$(DEP_PATH)"
 endif
+
 
 include $(RACK_DIR)/plugin.mk
