@@ -240,6 +240,7 @@ FLAGS += -I/use/local/include
 LDFLAGS += -L/usr/local/lib -lfaust 
 DEPS += $(faust)
 OBJECTS += $(faust)
+DISTRIBUTABLES += faust_libraries
 FAUST_MAKE_FLAGS += prefix="$(DEP_PATH)"
 endif
 
