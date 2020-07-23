@@ -221,15 +221,29 @@ DEPS += $(libpd)
 FLAGS += -Idep/include/libpd
 
 ifdef ARCH_WIN
-	FLAGS += -DPD_INTERNAL -D_WIN32
-	LDFLAGS += -shared -Wl,--export-all-symbols -lws2_32 -lkernel32 -static-libgcc
+	# the PD_INTERNAL leaves the function declarations for libpd unchanged
+	# not specifying that flag would enable the  "EXTERN __declspec(dllexport) extern" macro
+	# which throughs a linker error. I guess this macro should only be used for the windows 
+	# specific .dll dynamic linking format.
+	# The corresponding #define resides in "m_pd.h" inside pure data sources
+	FLAGS += -DPD_INTERNAL
+	LDFLAGS += -Wl,--export-all-symbols
+	LDFLAGS += -lws2_32
 endif
 
 $(libpd):
 	cd dep && git clone "https://github.com/chairaudio/libpd.git" --recursive
 	cd dep/libpd && git checkout fe1a0d08979efd5fc46590108845b235cb824634
 
+ifdef ARCH_MAC
+	# libpd's Makefile is handmade, and it doesn't honor CFLAGS and LDFLAGS environments.
+	# So in order for Mac 10.15 (for example) to make a build that works on Mac 10.7+, we have to manually add DEP_MAC_SDK_FLAGS to CFLAGS and LDFLAGS.
+	# We can't just add the environment's CFLAGS/LDFLAGS because `-march=nocona` makes libpd segfault when initialized.
+	# Perhaps inline assembly is used in libpd? Who knows.
+	cd dep/libpd && $(MAKE) MULTI=true BUILD_LIBPD_STATIC=true ADDITIONAL_CFLAGS='-DPD_LONGINTTYPE="long long" $(DEP_MAC_SDK_FLAGS) -stdlib=libc++' ADDITIONAL_LDFLAGS='$(DEP_MAC_SDK_FLAGS) -stdlib=libc++'
+else
 	cd dep/libpd && $(MAKE) MULTI=true BUILD_LIBPD_STATIC=true ADDITIONAL_CFLAGS='-DPD_LONGINTTYPE="long long"'
+endif
 	cd dep/libpd && $(MAKE) install prefix="$(DEP_PATH)"
 endif
 

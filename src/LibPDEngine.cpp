@@ -69,9 +69,8 @@ struct LibPDEngine : ScriptEngine {
 		libpd_set_printhook((t_libpd_printhook)libpd_print_concatenator);
 		libpd_set_concatenated_printhook(receiveLights);
 
-
 		if (libpd_num_instances() > 2) {
-			display("Sorry, multi instance support in libpd is under development!");
+			display("Multiple simultaneous libpd (Pure Data) instances not yet supported.");
 			return -1;
 		}
 
@@ -146,7 +145,7 @@ struct LibPDEngine : ScriptEngine {
 		_ticks = 1;
 		libpd_process_float(_ticks, _input, _output);
 
-		//return samples to prototype
+		// return samples to prototype
 		for (int s = 0; s < _pd_block_size; s++) {
 			for (int r = 0; r < rows; r++) {
 				block->outputs[r][s] = _output[s * rows + r]; // scale up again to +-5V signal
@@ -216,7 +215,7 @@ void LibPDEngine::receiveLights(const char* s) {
 		//std::cout << v[1] << ", " << g_led_map[v[1]] << std::endl;
 		if (utility_is_valid && atoms.size() >= 3) {
 			g_utility[0] = atoms[1]; // display
-			g_utility[1] = {""};
+			g_utility[1] = "";
 			for (unsigned i = 0; i < atoms.size() - 2; i++) {
 				g_utility[1] += " " + atoms[i + 2]; // concatenate message
 			}
@@ -227,8 +226,27 @@ void LibPDEngine::receiveLights(const char* s) {
 		}
 	}
 	else {
-		// print out on command line
-		std::cout << "libpd prototype unrecognizes message: " << std::string(s) << std::endl;
+		bool utility_is_valid = true;
+		int utility_idx = -1;
+		try {
+			utility_idx = _utility_map.at(atoms[0]);      // map::at throws an out-of-range
+		}
+		catch (const std::out_of_range& oor) {
+			WARN("Prototype libpd: %s", s);
+			utility_is_valid = false;
+			//display("Warning:"+atoms[1]+" not found!");
+			// print out on command line
+		}
+		if (utility_is_valid) {
+			switch (utility_idx) {
+				case 1:
+					WARN("Prototype libpd: %s", s);
+					break;
+
+				default:
+					break;
+			}
+		}
 	}
 }
 
@@ -269,7 +287,8 @@ const std::map<std::string, int> LibPDEngine::_switchLight_map{
 };
 
 const std::map<std::string, int> LibPDEngine::_utility_map{
-	{ "display", 0 }
+	{ "display", 0 },
+	{ "error:", 1 }
 };
 
 
